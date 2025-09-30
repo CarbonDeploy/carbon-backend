@@ -5,7 +5,6 @@ import { ApiParam } from '@nestjs/swagger';
 
 export function extractExchangeId(request: Request, exchangeIdParam?: string): ExchangeId {
   let exchangeId: ExchangeId;
-
   if (exchangeIdParam) {
     exchangeId = exchangeIdParam as ExchangeId;
   } else {
@@ -13,12 +12,11 @@ export function extractExchangeId(request: Request, exchangeIdParam?: string): E
     if (subdomain.endsWith('-api')) {
       subdomain = subdomain.slice(0, -4); // Remove '-api' suffix
     }
-    if (subdomain === 'api') {
-      subdomain = ExchangeId.OGEthereum;
+    if (subdomain === 'api' || subdomain === 'localhost') {
+      subdomain = ExchangeId.Bsc;
     }
 
-    // Default to 'ethereum' if subdomain is empty
-    exchangeId = subdomain ? (subdomain as ExchangeId) : ('ethereum' as ExchangeId);
+    exchangeId = subdomain ? (subdomain as ExchangeId) : (ExchangeId.Bsc as ExchangeId);
   }
 
   if (!Object.values(ExchangeId).includes(exchangeId)) {

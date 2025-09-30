@@ -44,6 +44,10 @@ export class QuoteService implements OnModuleInit {
     [BlockchainType.Berachain]: [{ name: 'codex', enabled: true }],
     [BlockchainType.Coti]: [],
     [BlockchainType.Iota]: [],
+    [BlockchainType.Bsc]: [
+      { name: 'coingecko', enabled: true },
+      { name: 'codex', enabled: true },
+    ],
   };
 
   constructor(

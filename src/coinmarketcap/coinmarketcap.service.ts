@@ -14,20 +14,35 @@ export interface PriceObject {
 
 const MAX_RESULTS_PER_CALL = 10000;
 const INTERVAL_IN_MINUTES = 360;
+
 const ETH_ID = 1027;
+const BNB_ID = 1839;
+
+const PLATFORM_MAPPING = {
+  'ethereum': 'ethereum',
+  'bsc': 'binance-smart-chain', // CoinMarketCap's slug for BSC
+};
+
+const NATIVE_TOKEN_IDS = {
+  'ethereum': ETH_ID,
+  'bsc': BNB_ID,
+};
 
 @Injectable()
 export class CoinMarketCapService {
   private ethAddress;
+  private bnbAddress;
+
   constructor(private readonly configService: ConfigService) {
     this.ethAddress = NATIVE_TOKEN;
+    this.bnbAddress = NATIVE_TOKEN;
   }
 
   private getApiKey(): string {
     return this.configService.get<string>('COINMARKETCAP_API_KEY');
   }
 
-  private async getTokenIds(tokenAddresses: string[]): Promise<string[]> {
+  private async getTokenIds(tokenAddresses: string[], platform: string): Promise<string[]> {
     const apiKey = this.getApiKey();
     const infoUrl = 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/map';
 
@@ -40,12 +55,18 @@ export class CoinMarketCapService {
       });
 
       const data = response.data.data;
+      const platformSlug = PLATFORM_MAPPING[platform];
+      const nativeTokenId = NATIVE_TOKEN_IDS[platform];
 
       const tokenIds = tokenAddresses.map((address) => {
-        if (address.toLowerCase() === this.ethAddress.toLowerCase()) {
-          return ETH_ID.toString();
+        if (address.toLowerCase() === NATIVE_TOKEN.toLowerCase()) {
+          return nativeTokenId.toString();
         }
-        const foundToken = data.find((token) => token.platform?.token_address.toLowerCase() === address.toLowerCase());
+        const foundToken = data.find(
+          (token) => 
+            token.platform?.token_address.toLowerCase() === address.toLowerCase() &&
+            token.platform?.slug === platformSlug
+        );
         return foundToken ? foundToken.id.toString() : null;
       });
 
@@ -67,11 +88,12 @@ export class CoinMarketCapService {
     }
   }
 
-  private async getV1CryptocurrencyListingsLatest(): Promise<any> {
+  private async getV1CryptocurrencyListingsLatest(platform: string ): Promise<any> {
     const apiUrl = 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest';
     const apiKey = this.getApiKey();
     const limit = 5000;
     const result: any[] = [];
+    const platformSlug = PLATFORM_MAPPING[platform];
 
     try {
       let start = 1;
@@ -93,7 +115,8 @@ export class CoinMarketCapService {
         }
 
         responseData.forEach((d) => {
-          if (d.platform && d.platform.slug === 'ethereum') {
+          // Support both Ethereum and BSC
+          if (d.platform && d.platform.slug === platformSlug) {
             result.push({
               tokenAddress: d.platform.token_address.toLowerCase(),
               usd: d.quote.USD.price,
@@ -117,11 +140,13 @@ export class CoinMarketCapService {
     }
   }
 
-  private async getV1CryptocurrencyMapTokens(): Promise<any[]> {
+  private async getV1CryptocurrencyMapTokens(platform: string): Promise<any[]> {
     const apiUrl = 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/map';
     const apiKey = this.getApiKey();
     const limit = 5000;
     const result: any[] = [];
+    const platformSlug = PLATFORM_MAPPING[platform];
+    const nativeTokenId = NATIVE_TOKEN_IDS[platform];
 
     try {
       let start = 1;
@@ -141,20 +166,23 @@ export class CoinMarketCapService {
           break;
         }
 
-        // Filter out tokens with null platform and include only Ethereum tokens
-        const ethereumTokens = responseData.filter((token) => token.platform && token.platform.slug === 'ethereum');
+        const platformTokens = responseData.filter(
+          (token) => token.platform && token.platform.slug === platformSlug
+        );
 
-        result.push(...ethereumTokens);
+        result.push(...platformTokens);
         start += responseData.length;
 
         if (responseData.length < limit) {
           break;
         }
       }
+
       result.push({
-        id: ETH_ID,
-        platform: { token_address: this.ethAddress.toLowerCase() },
+        id: nativeTokenId,
+        platform: { token_address: NATIVE_TOKEN.toLowerCase() },
       });
+
       return result;
     } catch (error) {
       // Handle errors here
@@ -162,7 +190,7 @@ export class CoinMarketCapService {
     }
   }
 
-  private async getV2CryptocurrencyQuotesLatest(ids: number[]): Promise<any> {
+  private async getV2CryptocurrencyQuotesLatest(ids: number[], platform: string): Promise<any> {
     const apiUrl = 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest';
     const apiKey = this.getApiKey();
 
@@ -179,7 +207,7 @@ export class CoinMarketCapService {
       const result = [];
       Object.keys(data).forEach((key) => {
         const q = data[key];
-        const tokenAddress = q.id === ETH_ID ? this.ethAddress.toLowerCase() : q.platform.token_address.toLowerCase();
+        const tokenAddress = q.id === NATIVE_TOKEN_IDS[platform] ? NATIVE_TOKEN.toLowerCase() : q.platform.token_address.toLowerCase();
         result.push({
           tokenAddress,
           usd: q.quote.USD.price,
@@ -198,9 +226,10 @@ export class CoinMarketCapService {
     tokenAddresses: string[],
     start: number,
     end: number,
+    platform: string,
   ): Promise<{ [key: string]: PriceObject[] }> {
     try {
-      const tokenIds = await this.getTokenIds(tokenAddresses);
+      const tokenIds = await this.getTokenIds(tokenAddresses, platform);
 
       const totalDataPoints = Math.ceil(((end - start) / (INTERVAL_IN_MINUTES * 60)) * tokenAddresses.length);
       const batches = Math.ceil(totalDataPoints / MAX_RESULTS_PER_CALL);
@@ -243,13 +272,13 @@ export class CoinMarketCapService {
     }
   }
 
-  async getLatestQuotes(): Promise<any> {
-    const latestQuotes = await this.getV1CryptocurrencyListingsLatest();
-    const eth = await this.getV2CryptocurrencyQuotesLatest([ETH_ID]);
+  async getLatestQuotes(platform: string): Promise<any> {
+    const latestQuotes = await this.getV1CryptocurrencyListingsLatest(platform);
+    const eth = await this.getV2CryptocurrencyQuotesLatest([NATIVE_TOKEN_IDS[platform]], platform);
     return [...latestQuotes, ...eth];
   }
 
-  async getAllTokens(): Promise<any[]> {
-    return await this.getV1CryptocurrencyMapTokens();
+  async getAllTokens(platform: string): Promise<any[]> {
+    return await this.getV1CryptocurrencyMapTokens(platform);
   }
 }

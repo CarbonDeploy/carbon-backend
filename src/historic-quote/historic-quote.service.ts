@@ -45,6 +45,7 @@ export class HistoricQuoteService implements OnModuleInit {
   private isPolling = false;
   private readonly intervalDuration: number;
   private shouldPollQuotes: boolean;
+  private platform: string;
   private priceProviders: BlockchainProviderConfig = {
     [BlockchainType.Ethereum]: [
       { name: 'coinmarketcap', enabled: true },
@@ -61,6 +62,10 @@ export class HistoricQuoteService implements OnModuleInit {
     [BlockchainType.Coti]: [{ name: 'carbon-defi', enabled: true }],
     [BlockchainType.Iota]: [],
     [BlockchainType.Tac]: [{ name: 'carbon-defi', enabled: true }],
+    [BlockchainType.Bsc]: [
+      { name: 'coinmarketcap', enabled: true },
+      { name: 'codex', enabled: true }
+    ],
   };
 
   constructor(
@@ -73,6 +78,7 @@ export class HistoricQuoteService implements OnModuleInit {
   ) {
     this.intervalDuration = +this.configService.get('POLL_HISTORIC_QUOTES_INTERVAL') || 300000;
     this.shouldPollQuotes = this.configService.get('SHOULD_POLL_HISTORIC_QUOTES') === '1';
+    this.platform = this.configService.get('PLATFORM');
   }
 
   /**
@@ -147,7 +153,7 @@ export class HistoricQuoteService implements OnModuleInit {
   private async updateCoinMarketCapQuotes(): Promise<void> {
     const deployment = this.deploymentService.getDeploymentByBlockchainType(BlockchainType.Ethereum);
     const latest = await this.getLatest(BlockchainType.Ethereum); // Pass the deployment to filter by blockchainType
-    const allQuotes = await this.coinmarketcapService.getLatestQuotes();
+    const allQuotes = await this.coinmarketcapService.getLatestQuotes(this.platform);
 
     // Filter out quotes for tokens that should be ignored from pricing
     const quotes = allQuotes.filter(
@@ -253,7 +259,7 @@ export class HistoricQuoteService implements OnModuleInit {
     const end = moment().unix();
     let i = 0;
 
-    const tokens = await this.coinmarketcapService.getAllTokens();
+    const tokens = await this.coinmarketcapService.getAllTokens(this.platform);
     const batchSize = 100; // Adjust the batch size as needed
 
     for (let startIndex = 0; startIndex < tokens.length; startIndex += batchSize) {
@@ -261,7 +267,7 @@ export class HistoricQuoteService implements OnModuleInit {
       const addresses = batchTokens.map((token) => token.platform.token_address);
 
       // Fetch historical quotes for the current batch of tokens
-      const quotesByAddress = await this.coinmarketcapService.getHistoricalQuotes(addresses, start, end);
+      const quotesByAddress = await this.coinmarketcapService.getHistoricalQuotes(addresses, start, end, this.platform);
 
       for (const token of batchTokens) {
         const address = token.platform.token_address;

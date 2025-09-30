@@ -27,6 +27,10 @@ export class MarketRateController {
     [BlockchainType.Coti]: [],
     [BlockchainType.Iota]: [],
     [BlockchainType.Tac]: [],
+    [BlockchainType.Bsc]: [
+      { name: 'coingecko', enabled: true },
+      { name: 'codex', enabled: true },
+    ],
   };
 
   constructor(

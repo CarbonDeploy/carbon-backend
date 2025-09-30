@@ -8,7 +8,7 @@ export class CoinGeckoService {
   private readonly logger = new Logger(CoinGeckoService.name);
   constructor(private configService: ConfigService) {}
 
-  private readonly baseURL = 'https://pro-api.coingecko.com/api/v3';
+  private readonly baseURL = 'https://api.coingecko.com/api/v3/';
 
   async getLatestPrices(contractAddresses: string[], deployment: Deployment, convert = ['usd']): Promise<any> {
     const apiKey = this.configService.get('COINGECKO_API_KEY');
@@ -16,6 +16,17 @@ export class CoinGeckoService {
     const batchSize = 150;
 
     try {
+
+      // const nativeTokenAlias = deployment.nativeTokenAlias;
+      // const nativeToken = deployment.gasToken.address;
+
+      // contractAddresses = contractAddresses.map((address) => {
+      //   if (address.toLowerCase() === nativeToken.toLowerCase()) {
+      //     return nativeTokenAlias;
+      //   }
+      //   return address;
+      // });
+      
       const batches: string[][] = [];
       for (let i = 0; i < contractAddresses.length; i += batchSize) {
         const batch = contractAddresses.slice(i, i + batchSize);
@@ -30,7 +41,7 @@ export class CoinGeckoService {
             include_last_updated_at: true,
           },
           headers: {
-            'x-cg-pro-api-key': apiKey,
+            'x_cg_demo_api_key': apiKey,
           },
         });
       });
