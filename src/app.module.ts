@@ -26,6 +26,7 @@ import { SubdomainCacheInterceptor } from './cache.interceptor';
 import { CarbonPriceModule } from './carbon-price/carbon-price.module';
 import { MerklModule } from './merkl/merkl.module';
 import { WalletPairBalanceModule } from './wallet-pair-balance/wallet-pair-balance.module';
+import * as fs from 'fs';
 
 @Module({
   imports: [
@@ -43,7 +44,7 @@ import { WalletPairBalanceModule } from './wallet-pair-balance/wallet-pair-balan
         const ssl =
           configService.get('DATABASE_SSL_ENABLED') && configService.get('DATABASE_SSL_ENABLED') === '1'
             ? {
-                ca: configService.get('CARBON_BACKEND_SQL_CERTIFICATION'),
+                ca: fs.readFileSync(configService.get('CARBON_BACKEND_SQL_CERTIFICATION')).toString(),
                 ciphers: [
                   'ECDHE-RSA-AES128-SHA256',
                   'DHE-RSA-AES128-SHA256',
