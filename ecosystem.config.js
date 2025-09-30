@@ -15,9 +15,6 @@ module.exports = {
       NODE_ENV: 'production',
       TZ: 'UTC'
     },
-    error_file: '/var/log/pm2/carbon-backend-error.log',
-    out_file: '/var/log/pm2/carbon-backend-out.log',
-    log_file: '/var/log/pm2/carbon-backend-combined.log',
     time: true,
     log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
     merge_logs: true,
