@@ -45,6 +45,7 @@ import * as fs from 'fs';
           configService.get('DATABASE_SSL_ENABLED') && configService.get('DATABASE_SSL_ENABLED') === '1'
             ? {
                 ca: fs.readFileSync(configService.get('CARBON_BACKEND_SQL_CERTIFICATION')).toString(),
+                rejectUnauthorized: true,
                 ciphers: [
                   'ECDHE-RSA-AES128-SHA256',
                   'DHE-RSA-AES128-SHA256',
