@@ -51,14 +51,43 @@ export class PairService {
   async createFromEvents(events: PairCreatedEvent[], tokens: TokensByAddress, deployment: Deployment) {
     const pairs = [];
     events.forEach((e) => {
-      if (!tokens[e.token1] || !tokens[e.token0]) {
-        console.log('Token not found', e.token1, e.token0);
+      // Try exact match first, then case-insensitive
+      let token0 = tokens[e.token0];
+      let token1 = tokens[e.token1];
+      
+      // If not found, try case-insensitive lookup
+      if (!token0) {
+        const foundToken0 = Object.entries(tokens).find(([addr, token]) => 
+          addr.toLowerCase() === e.token0.toLowerCase()
+        );
+        token0 = foundToken0 ? foundToken0[1] : null;
       }
+      
+      if (!token1) {
+        const foundToken1 = Object.entries(tokens).find(([addr, token]) => 
+          addr.toLowerCase() === e.token1.toLowerCase()
+        );
+        token1 = foundToken1 ? foundToken1[1] : null;
+      }
+      
+      if (!token0 || !token1) {
+        console.log('Token not found, skipping pair creation:', {
+          token0Address: e.token0,
+          token1Address: e.token1,
+          token0Found: !!token0,
+          token1Found: !!token1,
+          blockId: e.block.id,
+          deployment: `${deployment.blockchainType}:${deployment.exchangeId}`,
+          availableTokenCount: Object.keys(tokens).length
+        });
+        return; // Skip this pair creation instead of crashing
+      }
+      
       pairs.push(
         this.pair.create({
-          token0: tokens[e.token0],
-          token1: tokens[e.token1],
-          name: `${tokens[e.token0].symbol}_${tokens[e.token1].symbol}`,
+          token0: token0,
+          token1: token1,
+          name: `${token0.symbol}_${token1.symbol}`,
           block: e.block,
           blockchainType: deployment.blockchainType, // Include blockchainType
           exchangeId: deployment.exchangeId, // Include exchangeId
@@ -66,7 +95,9 @@ export class PairService {
       );
     });
 
-    await this.pair.save(pairs);
+    if (pairs.length > 0) {
+      await this.pair.save(pairs);
+    }
   }
 
   async getSymbols(addresses: string[], deployment: Deployment): Promise<string[]> {
