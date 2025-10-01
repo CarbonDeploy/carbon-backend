@@ -3,7 +3,7 @@ module.exports = {
       name: 'carbon-backend',
       script: 'npm',
       args: 'run start:prod',
-      cwd: '/Users/tarunmeena/drive/work/carbon-backend',
+      cwd: process.cwd(), // Use current working directory instead of hardcoded path
       instances: 1,
       autorestart: true,
       watch: false,
