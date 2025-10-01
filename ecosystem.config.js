@@ -2,7 +2,7 @@ module.exports = {
     apps: [{
       name: 'carbon-backend',
       script: 'npm',
-      args: 'run start',
+      args: 'run start:prod',
       cwd: '/Users/tarunmeena/drive/work/carbon-backend',
       instances: 1,
       autorestart: true,
