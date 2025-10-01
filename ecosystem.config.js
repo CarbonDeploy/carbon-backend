@@ -10,12 +10,14 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         TZ: 'UTC',
-        DATABASE_URL: process.env.DATABASE_URL,
+        HTTPS: 'true',  // Add this if your app needs to know it's behind HTTPS
+        TRUST_PROXY: 'true'  // Add this for proper IP forwarding
       },
       env_production: {
         NODE_ENV: 'production',
         TZ: 'UTC',
-        DATABASE_URL: process.env.DATABASE_URL,
+        HTTPS: 'true',
+        TRUST_PROXY: 'true'
       },
       time: true,
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
@@ -26,4 +28,3 @@ module.exports = {
       reload_delay: 1000,
     }]
   };
-  
