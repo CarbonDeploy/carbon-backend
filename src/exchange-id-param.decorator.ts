@@ -12,9 +12,8 @@ export function extractExchangeId(request: Request, exchangeIdParam?: string): E
     if (subdomain.endsWith('-api')) {
       subdomain = subdomain.slice(0, -4); // Remove '-api' suffix
     }
-    if (subdomain === 'api' || subdomain === 'localhost') {
-      subdomain = ExchangeId.Bsc;
-    }
+
+    subdomain = ExchangeId.Bsc;
 
     exchangeId = subdomain ? (subdomain as ExchangeId) : (ExchangeId.Bsc as ExchangeId);
   }
