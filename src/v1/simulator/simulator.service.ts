@@ -31,7 +31,7 @@ export class SimulatorService {
     const quoteToken = params['quoteToken'].toLowerCase();
 
     // handle fees - use the original deployment for fees
-    const defaultFee = (await this.tradingFeePpmUpdatedEventService.last(originalDeployment)).newFeePPM;
+    const defaultFee = (await this.tradingFeePpmUpdatedEventService.last(originalDeployment))?.newFeePPM || 3000;
     const pairFees = await this.pairTradingFeePpmUpdatedEventService.allAsDictionary(originalDeployment);
     let feePpm;
     if (pairFees[baseToken] && pairFees[baseToken][quoteToken]) {
@@ -121,7 +121,7 @@ export class SimulatorService {
     await fsPromises.writeFile(inputFilePath, JSON.stringify(inputData, null, 2));
 
     // Step 2: Run Python executable
-    const pythonExecutablePath = path.join(__dirname, '../../simulator/run.py');
+    const pythonExecutablePath = path.join(__dirname, '../../../simulator/run.py');
 
     // Run Python executable asynchronously
     const pythonProcess = childProcess.spawn('python3', [pythonExecutablePath, '-c', inputFilePath, '-o', outputPath]);
