@@ -37,7 +37,6 @@ export class TokensTradedEventService {
     tokens: TokensByAddress,
     deployment: Deployment,
   ): Promise<any> {
-    console.log("INSIDE TOKENS TRADED EVENT SERVICE")
     return this.harvesterService.processEvents({
       entity: 'tokens-traded-events',
       contractName: ContractsNames.CarbonController,
