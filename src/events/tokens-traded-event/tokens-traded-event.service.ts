@@ -37,6 +37,7 @@ export class TokensTradedEventService {
     tokens: TokensByAddress,
     deployment: Deployment,
   ): Promise<any> {
+    console.log("INSIDE TOKENS TRADED EVENT SERVICE")
     return this.harvesterService.processEvents({
       entity: 'tokens-traded-events',
       contractName: ContractsNames.CarbonController,
@@ -57,10 +58,9 @@ export class TokensTradedEventService {
 
   async parseEvent(args: CustomFnArgs): Promise<any> {
     const { event, rawEvent, pairsDictionary, tokens } = args;
-
-    event['sourceToken'] = tokens[rawEvent.returnValues['sourceToken']];
-    event['targetToken'] = tokens[rawEvent.returnValues['targetToken']];
-    event['pair'] = pairsDictionary[event['sourceToken'].address][event['targetToken'].address];
+    event['sourceToken'] = tokens[rawEvent.returnValues['sourceToken'].toLowerCase()];
+    event['targetToken'] = tokens[rawEvent.returnValues['targetToken'].toLowerCase()];
+    event['pair'] = pairsDictionary[event['sourceToken'].address.toLowerCase()][event['targetToken'].address.toLowerCase()];
     event['type'] = event['sourceToken'].id === event['pair'].token0.id ? 'sell' : 'buy';
 
     return event;

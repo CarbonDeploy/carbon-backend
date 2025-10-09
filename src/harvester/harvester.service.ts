@@ -196,7 +196,6 @@ export class HarvesterService {
     if (!contractAddress) {
       throw new Error(`Contract ${contractName} address not found in deployment configuration`);
     }
-
     // Create and return contract instance
     return new web3.eth.Contract(Contracts[contractName], contractAddress);
   }
@@ -223,7 +222,6 @@ export class HarvesterService {
         rangeStart + deployment.harvestEventsBatchSize * deployment.harvestConcurrency,
         args.endBlock,
       );
-
       const events = await this.fetchEventsFromBlockchain(
         args.contractName,
         args.eventName,
@@ -243,6 +241,13 @@ export class HarvesterService {
 
         const newEvents = await Promise.all(
           events.map(async (e) => {
+            const logIndex = Number(e.logIndex);
+            
+            if (logIndex > 2147483647 || logIndex === 4294967295) {
+              console.error(`Skipping event with invalid logIndex: ${logIndex} in tx ${e.transactionHash}`);
+              return null;
+            }
+        
             let newEvent = args.repository.create({
               block: { id: Number(e.blockNumber) },
               transactionIndex: Number(e.transactionIndex),
@@ -261,12 +266,17 @@ export class HarvesterService {
             }
 
             if (e.returnValues['token0'] && e.returnValues['token1'] && args.tokens) {
-              newEvent['token0'] = args.tokens[e.returnValues['token0']];
-              newEvent['token1'] = args.tokens[e.returnValues['token1']];
+              // Normalize addresses to lowercase for dictionary lookup
+              const token0Lower = e.returnValues['token0'].toLowerCase();
+              const token1Lower = e.returnValues['token1'].toLowerCase();
+              newEvent['token0'] = args.tokens[token0Lower];
+              newEvent['token1'] = args.tokens[token1Lower];
             }
 
             if (e.returnValues['token0'] && e.returnValues['token1'] && args.pairsDictionary) {
-              newEvent['pair'] = args.pairsDictionary[e.returnValues['token0']][e.returnValues['token1']];
+              const token0Lower = e.returnValues['token0'].toLowerCase();
+              const token1Lower = e.returnValues['token1'].toLowerCase(); 
+              newEvent['pair'] = args.pairsDictionary[token0Lower]?.[token1Lower];
             }
 
             if (args.stringFields) {
@@ -337,7 +347,8 @@ export class HarvesterService {
           }),
         );
 
-        const batches = _.chunk(newEvents, 1000);
+        const validEvents = newEvents.filter(e => e !== null);
+        const batches = _.chunk(validEvents, 1000);
         await Promise.all(batches.map((batch) => args.repository.save(batch)));
 
         result.push(newEvents);

@@ -99,11 +99,11 @@ export class DeploymentService {
         exchangeId: ExchangeId.Bsc,
         blockchainType: BlockchainType.Bsc,
         rpcEndpoint: this.configService.get('BSC_RPC_ENDPOINT'),
-        harvestEventsBatchSize: 5000, // BSC has faster blocks, smaller batches
-        harvestConcurrency: 8,
-        harvestSleep: 10000, // Add small delay for BSC rate limiting
+        harvestEventsBatchSize: 5000, // Optimized for faster processing
+        harvestConcurrency: 3,
+        harvestSleep: 2000, // Reduced delay for faster processing
         multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
-        startBlock: this.configService.get('BSC_START_BLOCK') || 62549576, 
+        startBlock: parseInt(this.configService.get('BSC_START_BLOCK')) || 62404561, 
         gasToken: {
           name: 'Binance Coin',
           symbol: 'BNB',
@@ -127,7 +127,7 @@ export class DeploymentService {
         mapEthereumTokens: {
           '0x55d398326f99059ff775485246999027b3197955': '0xdAC17F958D2ee523a2206206994597C13D831ec7', // USDT BSC -> USDT ETH
           '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d': '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', // USDC BSC -> USDC ETH
-          '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee': '0x418D75f65a02b3D53B2418FB8E1fe493759c7605', // WBNB BSC -> WBNB ETH
+          '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c': '0x418D75f65a02b3D53B2418FB8E1fe493759c7605', // WBNB BSC -> WBNB ETH
         },
         notifications: {
           explorerUrl: 'https://bscscan.com/tx/',
@@ -150,7 +150,7 @@ export class DeploymentService {
         harvestEventsBatchSize: 1000,
         harvestConcurrency: 10,
         multicallAddress: '0x5Eb3fa2DFECdDe21C950813C665E9364fa609bD2',
-        startBlock: 13447860,
+        startBlock: 23439972,
         gasToken: {
           name: 'Ethereum',
           symbol: 'ETH',

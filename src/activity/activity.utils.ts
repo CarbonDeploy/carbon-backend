@@ -110,8 +110,8 @@ export function createActivityFromEvent(
   tokens: TokensByAddress,
   strategyStates: StrategyStatesMap,
 ): ActivityV2 {
-  const token0 = tokens[event.token0.address];
-  const token1 = tokens[event.token1.address];
+  const token0 = tokens[event.token0.address.toLowerCase()];
+  const token1 = tokens[event.token1.address.toLowerCase()];
 
   if (!token0 || !token1) {
     throw new Error(`Token not found for addresses ${event.token0.address}, ${event.token1.address}`);

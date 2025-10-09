@@ -8,7 +8,7 @@ export class CoinGeckoService {
   private readonly logger = new Logger(CoinGeckoService.name);
   constructor(private configService: ConfigService) {}
 
-  private readonly baseURL = 'https://api.coingecko.com/api/v3/';
+  private readonly baseURL = 'https://pro-api.coingecko.com/api/v3/';
 
   async getLatestPrices(contractAddresses: string[], deployment: Deployment, convert = ['usd']): Promise<any> {
     const apiKey = this.configService.get('COINGECKO_API_KEY');
@@ -41,7 +41,7 @@ export class CoinGeckoService {
             include_last_updated_at: true,
           },
           headers: {
-            'x_cg_demo_api_key': apiKey,
+            'x-cg-pro-api-key': apiKey,
           },
         });
       });

@@ -16,7 +16,7 @@ import { VoucherTransferEventService } from '../events/voucher-transfer-event/vo
 import { AnalyticsService } from '../v1/analytics/analytics.service';
 import { DexScreenerV2Service } from '../v1/dex-screener/dex-screener-v2.service';
 import { TvlService } from '../tvl/tvl.service';
-import { Deployment, DeploymentService } from '../deployment/deployment.service';
+import { BlockchainType, Deployment, DeploymentService } from '../deployment/deployment.service';
 import { ArbitrageExecutedEventService } from '../events/arbitrage-executed-event/arbitrage-executed-event.service';
 import { ArbitrageExecutedEventServiceV2 } from '../events/arbitrage-executed-event-v2/arbitrage-executed-event-v2.service';
 import { VortexTokensTradedEventService } from '../events/vortex-tokens-traded-event/vortex-tokens-traded-event.service';
@@ -72,8 +72,11 @@ export class UpdaterService {
     if (shouldHarvest === '1') {
       const deployments = this.deploymentService.getDeployments();
       deployments.forEach((deployment) => {
-        const updateInterval = 5000; // Customize the interval as needed
-        this.scheduleDeploymentUpdate(deployment, updateInterval);
+        // Skipping Ethereum updates for now
+        if (deployment.blockchainType !== BlockchainType.Ethereum) {
+          const updateInterval = 5000; // Customize the interval as needed
+          this.scheduleDeploymentUpdate(deployment, updateInterval);
+        }
       });
     }
   }

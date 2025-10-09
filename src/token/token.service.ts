@@ -181,7 +181,8 @@ export class TokenService implements OnModuleInit {
       },
     });
     const tokensByAddress = {};
-    all.forEach((t) => (tokensByAddress[t.address] = t));
+    // Normalize addresses to lowercase for consistent lookups
+    all.forEach((t) => (tokensByAddress[t.address.toLowerCase()] = t));
     return tokensByAddress;
   }
 
@@ -305,24 +306,30 @@ export class TokenService implements OnModuleInit {
     // Get Ethereum deployment
     const ethereumDeployment = this.deploymentService.getDeploymentByBlockchainType(BlockchainType.Ethereum);
 
-    // Get all mapped Ethereum addresses
+    // Get all mapped Ethereum addresses and source addresses
     const lowercaseTokenMap = {};
     Object.entries(deployment.mapEthereumTokens).forEach(([key, value]) => {
       lowercaseTokenMap[key.toLowerCase()] = value.toLowerCase();
     });
     const mappedAddresses = Object.values(lowercaseTokenMap) as string[];
+    const sourceAddresses = Object.keys(lowercaseTokenMap) as string[];
 
     // Return empty array if no mappings
     if (mappedAddresses.length === 0) {
       return [];
     }
 
-    // Ensure each token exists
-    const tokens = await Promise.all(
+    // Ensure Ethereum tokens exist (the mapped tokens)
+    const ethereumTokens = await Promise.all(
       mappedAddresses.map((address: string) => this.getOrCreateTokenByAddress(address, ethereumDeployment)),
     );
 
-    return tokens;
+    // Ensure source tokens exist (the BSC tokens that are being mapped from)
+    const sourceTokens = await Promise.all(
+      sourceAddresses.map((address: string) => this.getOrCreateTokenByAddress(address, deployment)),
+    );
+
+    return [...ethereumTokens, ...sourceTokens];
   }
 
   /**

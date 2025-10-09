@@ -143,14 +143,18 @@ export class PairService {
     const all = await this.all(deployment);
     const dictionary: PairsDictionary = {};
     all.forEach((p) => {
-      if (!(p.token0.address in dictionary)) {
-        dictionary[p.token0.address] = {};
+      // Normalize addresses to lowercase for consistent lookups
+      const token0Address = p.token0.address.toLowerCase();
+      const token1Address = p.token1.address.toLowerCase();
+      
+      if (!(token0Address in dictionary)) {
+        dictionary[token0Address] = {};
       }
-      if (!(p.token1.address in dictionary)) {
-        dictionary[p.token1.address] = {};
+      if (!(token1Address in dictionary)) {
+        dictionary[token1Address] = {};
       }
-      dictionary[p.token0.address][p.token1.address] = p;
-      dictionary[p.token1.address][p.token0.address] = p;
+      dictionary[token0Address][token1Address] = p;
+      dictionary[token1Address][token0Address] = p;
     });
     return dictionary;
   }
