@@ -31,7 +31,7 @@ export class SimulatorService {
     const quoteToken = params['quoteToken'].toLowerCase();
 
     // handle fees - use the original deployment for fees
-    const defaultFee = (await this.tradingFeePpmUpdatedEventService.last(originalDeployment))?.newFeePPM || 3000;
+    const defaultFee = (await this.tradingFeePpmUpdatedEventService.last(originalDeployment)).newFeePPM;
     const pairFees = await this.pairTradingFeePpmUpdatedEventService.allAsDictionary(originalDeployment);
     let feePpm;
     if (pairFees[baseToken] && pairFees[baseToken][quoteToken]) {
