@@ -31,7 +31,8 @@ export class SimulatorService {
     const quoteToken = params['quoteToken'].toLowerCase();
 
     // handle fees - use the original deployment for fees
-    const defaultFee = (await this.tradingFeePpmUpdatedEventService.last(originalDeployment)).newFeePPM;
+    const lastFeeEvent = await this.tradingFeePpmUpdatedEventService.last(originalDeployment);
+    const defaultFee = lastFeeEvent?.newFeePPM ?? 2000; // Default to 2000 PPM (0.2%) if no fee data exists
     const pairFees = await this.pairTradingFeePpmUpdatedEventService.allAsDictionary(originalDeployment);
     let feePpm;
     if (pairFees[baseToken] && pairFees[baseToken][quoteToken]) {
