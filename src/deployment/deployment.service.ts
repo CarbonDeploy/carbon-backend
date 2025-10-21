@@ -115,7 +115,7 @@ export class DeploymentService {
             address: '0xafc43faE32302D725fC4d448525c44c522a9a1B9',
           },
           CarbonVortex: {
-            address: '0xED6BF2AefdB26b3cFE1d113dce0B425d44e101bA',
+            address: '0x12248C95a85fc343e1D69772c2d04f4bF7327EAb',
           },
           // CarbonPOL: {
           //   address: 'YOUR_BSC_CARBON_POL_ADDRESS',
