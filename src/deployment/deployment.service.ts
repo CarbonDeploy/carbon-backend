@@ -60,6 +60,16 @@ export interface Deployment {
     [deploymentTokenAddress: string]: string;
   };
   pricingIgnoreList?: string[];
+  graphPriceAnchors?: {
+    primary: {
+      localAddress: string;
+      ethereumAddress: string;
+    };
+    secondary?: {
+      localAddress: string;
+      ethereumAddress: string;
+    };
+  };
   contracts: {
     [contractName: string]: {
       address: string;
