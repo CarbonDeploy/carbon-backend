@@ -10,9 +10,15 @@ export class CoinGeckoService {
 
   private readonly baseURL = 'https://pro-api.coingecko.com/api/v3/';
 
+  private readonly PLATFORM_MAPPING: Record<string, string> = {
+    ethereum: 'ethereum',
+    bsc: 'binance-smart-chain',
+  };
+
   async getLatestPrices(contractAddresses: string[], deployment: Deployment, convert = ['usd']): Promise<any> {
     const apiKey = this.configService.get('COINGECKO_API_KEY');
     const blockchainType = deployment.blockchainType;
+    const platform = this.PLATFORM_MAPPING[blockchainType];
     const batchSize = 150;
 
     try {
@@ -34,7 +40,7 @@ export class CoinGeckoService {
       }
 
       const requests = batches.map(async (batch) => {
-        return axios.get(`${this.baseURL}/simple/token_price/${blockchainType}`, {
+        return axios.get(`${this.baseURL}/simple/token_price/${platform}`, {
           params: {
             contract_addresses: batch.join(','),
             vs_currencies: convert.join(','),
@@ -81,10 +87,15 @@ export class CoinGeckoService {
     const blockchainType = deployment.blockchainType;
     const gasToken = deployment.gasToken;
 
+    let coinId = blockchainType as string;
+    if(blockchainType === 'bsc') {
+      coinId = 'binancecoin';
+    }
+
     try {
       const response = await axios.get(`${this.baseURL}/simple/price`, {
         params: {
-          ids: blockchainType,
+          ids: coinId,
           vs_currencies: convert.join(','),
           include_last_updated_at: true,
         },

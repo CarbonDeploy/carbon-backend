@@ -128,6 +128,14 @@ export class DeploymentService {
           '0x55d398326f99059ff775485246999027b3197955': '0xdAC17F958D2ee523a2206206994597C13D831ec7', // USDT BSC -> USDT ETH
           '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d': '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', // USDC BSC -> USDC ETH
           '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c': '0x418D75f65a02b3D53B2418FB8E1fe493759c7605', // WBNB BSC -> WBNB ETH
+          "0x2170ed0880ac9a755fd29b2688956bd959f933f8": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",  // Binance-Peg ETH (WETH)
+          "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c": "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",  // BTCB -> WBTC
+          "0xe9e7cea3dedca5984780bafc599bd69add087d56": "0x4fabb145d64652a948d72533023f6e7a623c7c53",  // BUSD
+          "0xf8a0bf9cf54bb92f17374d9e9a321e6a111a51bd": "0x514910771af9ca656af840dff83e8264ecf986ca",  // LINK
+          "0xbf5140a22578168fd562dccf235e5d43a02ce9b1": "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",  // UNI
+          "0xfb6115445bff7b52feb98650c87f44907e58f802": "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9",  // AAVE
+          "0x52ce071bd9b1c4b00a0b92d298c512478cad67e8": "0xc00e94cb662c3520282e6f5717214004a7f26888",  // COMP
+          "0x947950bcc74888a40ffa2593c5798f11fc9124c4": "0x6b3595068778dd592e39a122f4f5a5cf09c90fe2"   // SUSHI
         },
         notifications: {
           explorerUrl: 'https://bscscan.com/tx/',
