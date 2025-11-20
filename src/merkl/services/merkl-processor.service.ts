@@ -175,32 +175,13 @@ export class MerklProcessorService {
       whitelistedAssets: [],
       defaultWeighting: 1, // Default weighting for unlisted tokens
     },
-    [ExchangeId.OGSei]: {
+    [ExchangeId.Bsc]: {
       tokenWeightings: {
-        '0x160345fC359604fC6e70E3c5fAcbdE5F7A9342d8': 1, // WETH
-        '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE': 99, // SEI
+        '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d': 0.7, // USDC
+        '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE': 1.8, // BNB
       },
       whitelistedAssets: [],
-      defaultWeighting: 0,
-    },
-    [ExchangeId.OGTac]: {
-      tokenWeightings: {
-        '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE': 0.75, // TAC
-        '0xB63B9f0eb4A6E6f191529D71d4D88cc8900Df2C9': 0.75, // WTAC
-        '0xAF988C3f7CB2AceAbB15f96b19388a259b6C438f': 2, // USDT
-        '0xb76d91340F5CE3577f0a056D29f6e3Eb4E88B140': 0.5, // TON
-        '0x61D66bC21fED820938021B06e9b2291f3FB91945': 1.25, // WETH
-        '0xAf368c91793CB22739386DFCbBb2F1A9e4bCBeBf': 1.25, // wstETH
-        '0x7048c9e4aBD0cf0219E95a17A8C6908dfC4f0Ee4': 1, // cbBTC
-        '0xecAc9C5F704e954931349Da37F60E39f515c11c1': 1, // lbBTC
-      },
-      whitelistedAssets: [],
-      defaultWeighting: 0.5,
-    },
-    [ExchangeId.OGCelo]: {
-      tokenWeightings: {},
-      whitelistedAssets: [],
-      defaultWeighting: 0.5,
+      defaultWeighting: 1, // Default weighting for unlisted tokens
     },
   };
 

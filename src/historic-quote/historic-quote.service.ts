@@ -51,20 +51,6 @@ export class HistoricQuoteService implements OnModuleInit {
       { name: 'coinmarketcap', enabled: true },
       { name: 'codex', enabled: true },
     ],
-    [BlockchainType.Sei]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Celo]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Blast]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Base]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Fantom]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Mantle]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Linea]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Berachain]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Coti]: [
-      { name: 'carbon-defi', enabled: true },
-      { name: 'carbon-graph', enabled: true },
-    ],
-    [BlockchainType.Iota]: [],
-    [BlockchainType.Tac]: [{ name: 'carbon-defi', enabled: true }],
     [BlockchainType.Bsc]: [
       { name: 'coinmarketcap', enabled: true },
       { name: 'codex', enabled: true }
@@ -199,10 +185,19 @@ export class HistoricQuoteService implements OnModuleInit {
     const latest = await this.getLatest(blockchainType);
     const allAddresses = await this.codexService.getAllTokenAddresses(deployment);
 
-    // Filter out addresses that should be ignored from pricing
-    const addresses = allAddresses.filter(
-      (address) => !this.deploymentService.isTokenIgnoredFromPricing(deployment, address),
-    );
+    const addressesSet = new Set<string>();
+    for (const address of allAddresses) {
+      if (!this.deploymentService.isTokenIgnoredFromPricing(deployment, address)) {
+        addressesSet.add(address.toLowerCase());
+      }
+    }
+
+    if (deployment.nativeTokenAlias) {
+      addressesSet.add(deployment.nativeTokenAlias.toLowerCase());
+      addressesSet.add(NATIVE_TOKEN.toLowerCase());
+    }
+
+    const addresses = Array.from(addressesSet);
 
     if (addresses.length === 0) {
       this.logger.log(`No addresses to update for ${blockchainType} after applying ignore list`);
@@ -235,16 +230,20 @@ export class HistoricQuoteService implements OnModuleInit {
     }
 
     if (deployment.nativeTokenAlias) {
-      const quote = quotes[deployment.nativeTokenAlias];
-      newQuotes.push(
-        this.repository.create({
-          tokenAddress: NATIVE_TOKEN.toLowerCase(),
-          usd: quote.usd,
-          timestamp: moment.unix(quote.last_updated_at).utc().toISOString(),
-          provider: 'codex',
-          blockchainType: deployment.blockchainType,
-        }),
-      );
+      const nativeQuote = quotes[NATIVE_TOKEN.toLowerCase()];
+      if (nativeQuote && nativeQuote.usd !== undefined && nativeQuote.last_updated_at !== undefined) {
+        newQuotes.push(
+          this.repository.create({
+            tokenAddress: NATIVE_TOKEN.toLowerCase(),
+            usd: nativeQuote.usd,
+            timestamp: moment.unix(nativeQuote.last_updated_at).utc().toISOString(),
+            provider: 'codex',
+            blockchainType: blockchainType,
+          }),
+        );
+      } else {
+        this.logger.error(`No native token quote found for ${blockchainType}`, nativeQuote);
+      }
     }
 
     const batches = _.chunk(newQuotes, 1000);
@@ -303,13 +302,21 @@ export class HistoricQuoteService implements OnModuleInit {
     const end = moment().unix();
     let i = 0;
 
-    const addresses = await this.codexService.getAllTokenAddresses(deployment);
+    const rawAddresses = await this.codexService.getAllTokenAddresses(deployment);
     const batchSize = 100;
 
-    const nativeTokenAlias = deployment.nativeTokenAlias ? deployment.nativeTokenAlias : null;
+    const nativeTokenAlias = deployment.nativeTokenAlias ? deployment.nativeTokenAlias.toLowerCase() : null;
 
-    for (let startIndex = 0; startIndex < addresses.length; startIndex += batchSize) {
-      const batchAddresses = addresses.slice(startIndex, startIndex + batchSize);
+    const addressSet = new Set(rawAddresses.map((address) => address.toLowerCase()));
+    if (nativeTokenAlias) {
+      addressSet.add(nativeTokenAlias);
+      addressSet.add(NATIVE_TOKEN.toLowerCase());
+    }
+
+    const normalizedAddresses = Array.from(addressSet);
+
+    for (let startIndex = 0; startIndex < normalizedAddresses.length; startIndex += batchSize) {
+      const batchAddresses = normalizedAddresses.slice(startIndex, startIndex + batchSize);
 
       // Fetch historical quotes for the current batch of addresses
       const quotesByAddress = await this.codexService.getHistoricalQuotes(deployment, batchAddresses, start, end);
@@ -318,6 +325,10 @@ export class HistoricQuoteService implements OnModuleInit {
 
       for (const address of batchAddresses) {
         const quotes = quotesByAddress[address];
+
+        if (!quotes || quotes.length === 0) {
+          continue;
+        }
 
         quotes.forEach((q: any) => {
           if (q.usd && q.timestamp) {
@@ -333,7 +344,7 @@ export class HistoricQuoteService implements OnModuleInit {
         });
 
         // If this is the native token alias, also create an entry for the native token
-        if (nativeTokenAlias && address.toLowerCase() === nativeTokenAlias.toLowerCase()) {
+        if (nativeTokenAlias && address === nativeTokenAlias) {
           quotes.forEach((q: any) => {
             if (q.usd && q.timestamp) {
               const nativeTokenQuote = this.repository.create({
@@ -351,7 +362,7 @@ export class HistoricQuoteService implements OnModuleInit {
 
       const batches = _.chunk(newQuotes, 1000);
       await Promise.all(batches.map((batch) => this.repository.save(batch)));
-      this.logger.log(`History quote seeding, finished ${++i} of ${addresses.length}`, new Date());
+      this.logger.log(`History quote seeding, finished ${++i} of ${normalizedAddresses.length}`, new Date());
     }
   }
 
@@ -709,6 +720,7 @@ export class HistoricQuoteService implements OnModuleInit {
       // Process regular blockchain quotes
       result.forEach((row: any) => {
         if (!row.open) {
+          console.log('Skipping row with null open:', row);
           return;
         }
 
@@ -823,6 +835,10 @@ export class HistoricQuoteService implements OnModuleInit {
     start: number,
     end: number,
   ): Promise<Candlestick[]> {
+    
+    tokenA = tokenA?.toLowerCase();
+    tokenB = tokenB?.toLowerCase();
+
     let tokenAData: { [key: string]: Candlestick[] };
     let tokenBData: { [key: string]: Candlestick[] };
 

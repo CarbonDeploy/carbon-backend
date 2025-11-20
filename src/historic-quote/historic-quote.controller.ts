@@ -2,7 +2,7 @@ import { CacheTTL } from '@nestjs/cache-manager';
 import { BadRequestException, Controller, Get, Header, Query } from '@nestjs/common';
 import { HistoricQuoteDto } from './historic-quote.dto';
 import { HistoricQuoteService } from './historic-quote.service';
-import { Deployment, DeploymentService, ExchangeId } from '../deployment/deployment.service';
+import { Deployment, DeploymentService, ExchangeId, NATIVE_TOKEN } from '../deployment/deployment.service';
 import { ApiExchangeIdParam, ExchangeIdParam } from '../exchange-id-param.decorator';
 
 @Controller({ version: '1', path: ':exchangeId?/history/prices' })
@@ -25,8 +25,17 @@ export class HistoricQuoteController {
     }
 
     // Convert tokens to lowercase
-    const baseTokenAddress = params.baseToken.toLowerCase();
-    const quoteTokenAddress = params.quoteToken.toLowerCase();
+    let baseTokenAddress = params.baseToken;
+    let quoteTokenAddress = params.quoteToken;
+
+    if(params.baseToken !== NATIVE_TOKEN) {
+      baseTokenAddress = params.baseToken.toLowerCase();
+    }
+
+    if(params.quoteToken !== NATIVE_TOKEN) {
+      quoteTokenAddress = params.quoteToken.toLowerCase();
+    }
+
 
     // Get the price data - the service handles token mapping internally
     const data = await this.historicQuoteService.getUsdBuckets(

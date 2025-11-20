@@ -36,15 +36,6 @@ export class QuoteService implements OnModuleInit {
       { name: 'codex', enabled: true },
       { name: 'carbon-defi', enabled: true },
     ],
-    [BlockchainType.Sei]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Celo]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Blast]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Base]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Mantle]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Linea]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Berachain]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Coti]: [],
-    [BlockchainType.Iota]: [],
     [BlockchainType.Bsc]: [
       { name: 'coingecko', enabled: true },
       { name: 'codex', enabled: true },
@@ -124,9 +115,6 @@ export class QuoteService implements OnModuleInit {
   }
 
   async pollForDeployment(deployment: Deployment): Promise<void> {
-    if (deployment.blockchainType === BlockchainType.Coti) {
-      return;
-    }
 
     try {
       const allTokens = await this.tokenService.getTokensByBlockchainType(deployment.blockchainType);
@@ -146,6 +134,11 @@ export class QuoteService implements OnModuleInit {
       let newPrices;
       if (deployment.blockchainType === BlockchainType.Ethereum) {
         newPrices = await this.coingeckoService.getLatestPrices(addresses, deployment);
+        const gasTokenPrice = await this.coingeckoService.getLatestGasTokenPrice(deployment);
+        newPrices = { ...newPrices, ...gasTokenPrice };
+      } else if (deployment.blockchainType === BlockchainType.Bsc) {
+        // For BSC, use Codex for regular tokens but also fetch BNB from CoinGecko
+        newPrices = await this.codexService.getLatestPrices(deployment, addresses);
         const gasTokenPrice = await this.coingeckoService.getLatestGasTokenPrice(deployment);
         newPrices = { ...newPrices, ...gasTokenPrice };
       } else {

@@ -146,3 +146,5 @@ reward_breakdown_*.csv
 reward_breakdown_*.csv.zip
 
 cert
+jmeter-test-plans/results
+jmeter-test-plans/reports

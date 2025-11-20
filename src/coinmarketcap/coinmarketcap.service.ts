@@ -1,6 +1,6 @@
 // coinmarketcap.service.ts
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import axios, { AxiosResponse } from 'axios';
 import { ConfigService } from '@nestjs/config';
 import { toTimestamp } from '../utilities';
@@ -91,45 +91,60 @@ export class CoinMarketCapService {
   private async getV1CryptocurrencyListingsLatest(platform: string ): Promise<any> {
     const apiUrl = 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest';
     const apiKey = this.getApiKey();
-    const limit = 5000;
+    const maxStart = 5000;
+    const defaultLimit = 5000;
     const result: any[] = [];
     const platformSlug = PLATFORM_MAPPING[platform];
 
     try {
       let start = 1;
 
-      while (true) {
-        const response = await axios.get(apiUrl, {
-          params: {
-            convert: 'USD',
-            limit,
-            start,
-            cryptocurrency_type: 'tokens',
-          },
-          headers: { 'X-CMC_PRO_API_KEY': apiKey },
-        });
-
-        const responseData = response.data.data;
-        if (!responseData || responseData.length === 0) {
+      while (start <= maxStart) {
+        // API constraint: start + limit <= 5000
+        // Calculate max allowed limit based on current start position
+        const maxAllowedLimit = 5000 - start;
+        if (maxAllowedLimit <= 0) {
           break;
         }
 
-        responseData.forEach((d) => {
-          // Support both Ethereum and BSC
-          if (d.platform && d.platform.slug === platformSlug) {
-            result.push({
-              tokenAddress: d.platform.token_address.toLowerCase(),
-              usd: d.quote.USD.price,
-              timestamp: d.last_updated,
-              provider: 'coinmarketcap',
-            });
+        const remaining = maxStart - start + 1;
+        const pageLimit = Math.min(defaultLimit, remaining, maxAllowedLimit);
+        
+        try {
+          const response = await axios.get(apiUrl, {
+            params: {
+              convert: 'USD',
+              limit: pageLimit,
+              start,
+              cryptocurrency_type: 'tokens',
+            },
+            headers: { 'X-CMC_PRO_API_KEY': apiKey },
+          });
+
+          const responseData = response.data.data;
+          if (!responseData || responseData.length === 0) {
+            break;
           }
-        });
 
-        start += responseData.length;
+          responseData.forEach((d) => {
+            // Support both Ethereum and BSC
+            if (d.platform && d.platform.slug === platformSlug) {
+              result.push({
+                tokenAddress: d.platform.token_address.toLowerCase(),
+                usd: d.quote.USD.price,
+                timestamp: d.last_updated,
+                provider: 'coinmarketcap',
+              });
+            }
+          });
 
-        if (responseData.length < limit) {
-          break;
+          start += responseData.length;
+
+          if (responseData.length < pageLimit) {
+            break;
+          }
+        } catch (error) {
+          throw error;
         }
       }
 
@@ -143,7 +158,8 @@ export class CoinMarketCapService {
   private async getV1CryptocurrencyMapTokens(platform: string): Promise<any[]> {
     const apiUrl = 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/map';
     const apiKey = this.getApiKey();
-    const limit = 5000;
+    const maxStart = 5000;
+    const defaultLimit = 5000;
     const result: any[] = [];
     const platformSlug = PLATFORM_MAPPING[platform];
     const nativeTokenId = NATIVE_TOKEN_IDS[platform];
@@ -151,30 +167,44 @@ export class CoinMarketCapService {
     try {
       let start = 1;
 
-      while (true) {
-        const response = await axios.get(apiUrl, {
-          params: {
-            listing_status: 'active',
-            limit,
-            start,
-          },
-          headers: { 'X-CMC_PRO_API_KEY': apiKey },
-        });
-
-        const responseData = response.data.data;
-        if (!responseData || responseData.length === 0) {
+      while (start <= maxStart) {
+        // API constraint: start + limit <= 5000
+        // Calculate max allowed limit based on current start position
+        const maxAllowedLimit = 5000 - start;
+        if (maxAllowedLimit <= 0) {
           break;
         }
 
-        const platformTokens = responseData.filter(
-          (token) => token.platform && token.platform.slug === platformSlug
-        );
+        const remaining = maxStart - start + 1;
+        const pageLimit = Math.min(defaultLimit, remaining, maxAllowedLimit);
+        
+        try {
+          const response = await axios.get(apiUrl, {
+            params: {
+              listing_status: 'active',
+              limit: pageLimit,
+              start,
+            },
+            headers: { 'X-CMC_PRO_API_KEY': apiKey },
+          });
 
-        result.push(...platformTokens);
-        start += responseData.length;
+          const responseData = response.data.data;
+          if (!responseData || responseData.length === 0) {
+            break;
+          }
 
-        if (responseData.length < limit) {
-          break;
+          const platformTokens = responseData.filter(
+            (token) => token.platform && token.platform.slug === platformSlug
+          );
+
+          result.push(...platformTokens);
+          start += responseData.length;
+
+          if (responseData.length < pageLimit) {
+            break;
+          }
+        } catch (error) {
+          throw error;
         }
       }
 

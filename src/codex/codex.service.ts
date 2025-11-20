@@ -5,15 +5,7 @@ import moment from 'moment';
 import { BlockchainType, Deployment, NATIVE_TOKEN } from '../deployment/deployment.service';
 
 export const NETWORK_IDS = {
-  [BlockchainType.Sei]: 531,
-  [BlockchainType.Celo]: 42220,
   [BlockchainType.Ethereum]: 1,
-  [BlockchainType.Base]: 8453,
-  [BlockchainType.Fantom]: 250,
-  [BlockchainType.Mantle]: 5000,
-  [BlockchainType.Blast]: 81457,
-  [BlockchainType.Linea]: 59144,
-  [BlockchainType.Berachain]: 80094,
   [BlockchainType.Bsc]: 56,
 };
 
@@ -193,7 +185,14 @@ export class CodexService {
       }
 
       // If no addresses provided, fetch all tokens with pagination
+      // API constraint: limit + offset <= 10000
+      const maxOffset = 10000 - limit; // Maximum offset to respect API constraint (9800)
       do {
+        // Check if next request would exceed API limit before making the request
+        if (offset > maxOffset) {
+          break;
+        }
+
         try {
           const result = await this.sdk.queries.filterTokens({
             filters: {
@@ -206,6 +205,12 @@ export class CodexService {
           fetched = result.filterTokens.results;
           allTokens = [...allTokens, ...fetched];
           offset += limit;
+
+          // Break if we got fewer results than limit (normal end condition)
+          // or if next offset would exceed maxOffset
+          if (fetched.length < limit || offset > maxOffset) {
+            break;
+          }
         } catch (error) {
           console.error('Error fetching tokens:', error);
           throw error;

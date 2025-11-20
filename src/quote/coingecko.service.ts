@@ -106,12 +106,12 @@ export class CoinGeckoService {
 
       const result = {
         [gasToken.address.toLowerCase()]: {
-          last_updated_at: response.data[blockchainType]['last_updated_at'],
+          last_updated_at: response.data[coinId]['last_updated_at'],
           provider: 'coingecko',
         },
       };
       convert.forEach((c) => {
-        result[gasToken.address.toLowerCase()][c.toLowerCase()] = response.data[blockchainType][c.toLowerCase()];
+        result[gasToken.address.toLowerCase()][c.toLowerCase()] = response.data[coinId][c.toLowerCase()];
       });
       return result;
     } catch (error) {

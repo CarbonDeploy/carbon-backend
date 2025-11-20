@@ -43,7 +43,12 @@ export class PairTradingFeePpmUpdatedEventService {
   async parseEvent(args: CustomFnArgs): Promise<any> {
     const { event, pairsDictionary } = args;
 
-    event['pair'] = pairsDictionary[event['token0'].address][event['token1'].address];
+    // Normalize addresses to lowercase and use optional chaining
+    const token0Address = event['token0']?.address?.toLowerCase();
+    const token1Address = event['token1']?.address?.toLowerCase();
+
+    // Use optional chaining to safely access nested dictionary
+    event['pair'] = pairsDictionary[token0Address][token1Address];
 
     return event;
   }

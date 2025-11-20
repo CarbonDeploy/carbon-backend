@@ -196,8 +196,18 @@ export class TokenService implements OnModuleInit {
   }
 
   private async createFromAddresses(addresses: string[], deployment: Deployment) {
+    // Filter out ignored addresses first
+    const filteredAddresses = addresses.filter(
+      (addr) => !this.deploymentService.isTokenIgnoredFromCreation(deployment, addr),
+    );
+
+    if (filteredAddresses.length === 0) {
+      console.log('All addresses were filtered out (ignored from creation)');
+      return;
+    }
+
     // map all token addresses in an array
-    const addressesSet = new Set(addresses);
+    const addressesSet = new Set(filteredAddresses);
 
     // filter out already existing tokens (case-insensitive comparison)
     const currentlyExistingTokens: any = await this.token.find({
