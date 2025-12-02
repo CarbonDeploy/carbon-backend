@@ -858,14 +858,14 @@ export class DexScreenerV2Service {
             FROM
                 pairsWithFee pf
                 LEFT JOIN "pair-created-events" pce ON (
-                    pce.token0 = pf.asset0Id
-                    AND pce.token1 = pf.asset1Id
+                    LOWER(pce.token0) = LOWER(pf.asset0Id)
+                    AND LOWER(pce.token1) = LOWER(pf.asset1Id)
                 )
                 OR (
-            pce.token0 = pf.asset1Id
-            AND pce.token1 = pf.asset0Id
+                    LOWER(pce.token0) = LOWER(pf.asset1Id)
+                    AND LOWER(pce.token1) = LOWER(pf.asset0Id)
+                )
         )
-)
 SELECT
     *
 FROM

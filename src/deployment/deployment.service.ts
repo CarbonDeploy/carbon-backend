@@ -126,7 +126,12 @@ export class DeploymentService {
           "0x8d0d000ee44948fc98c9b98a4fa4921476f08b0d": "0x8d0d000ee44948fc98c9b98a4fa4921476f08b0d",  // USD1
         },
         tokenIgnoreList: [
+          '0xC3c4f4be7075b11C43D01AE0Daf77b4362D1326f',
           '0xe7E4fE29540CAa46329C1B00EE40680220aB479e', // Invalid token address that causes NaN errors
+          '0x510ff0B69b1c8d31181Af13CED8d5bCAf9b17f91',
+          '0xee382fEb41732Cc7528256E2ABA6b76aE0613D2f',
+          '0x7C3DbBe067538706E9f6d9dE59Ac7eAd6D2b841B',
+          '0xdBe15ecB0c2d60e57288869D57a0BD288Bb69272',
         ],
         notifications: {
           explorerUrl: 'https://bscscan.com/tx/',

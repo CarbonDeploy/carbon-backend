@@ -46,7 +46,7 @@ export class GeckoTerminalController {
     const deployment: Deployment = await this.deploymentService.getDeploymentByExchangeId(exchangeId);
     const address = toChecksumAddress(params.id);
     const tokens = await this.tokenService.allByAddress(deployment);
-    const token = tokens[address];
+    const token = tokens[address.toLowerCase()];
 
     return {
       asset: {
