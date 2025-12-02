@@ -1,13 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository, QueryBuilder } from 'typeorm';
 import { Decimal } from 'decimal.js';
 import { SubEpochService } from './sub-epoch.service';
 import { SubEpoch } from '../entities/sub-epoch.entity';
 
 describe('SubEpochService', () => {
   let service: SubEpochService;
-  let repository: jest.Mocked<Repository<SubEpoch>>;
+  let repository: any;
   let mockQueryBuilder: any;
 
   beforeEach(async () => {

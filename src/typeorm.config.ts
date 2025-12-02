@@ -29,6 +29,7 @@ export default new DataSource({
   url: process.env.DATABASE_URL,
   entities: ['**/*.entity.ts'],
   migrations: ['dist/src/migrations/*.js'],
+  migrationsTransactionMode: 'each',
   ssl,
   synchronize: false,
 });

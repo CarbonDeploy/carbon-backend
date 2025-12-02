@@ -274,9 +274,14 @@ export class HarvesterService {
             }
 
             if (e.returnValues['token0'] && e.returnValues['token1'] && args.pairsDictionary) {
-              const token0Lower = e.returnValues['token0'].toLowerCase();
-              const token1Lower = e.returnValues['token1'].toLowerCase(); 
-              newEvent['pair'] = args.pairsDictionary[token0Lower]?.[token1Lower];
+              // Safely lookup pair - check if both dictionary levels exist to prevent crashes
+              // when pairs weren't created due to invalid tokens (e.g., missing decimals)
+              const token0Dict = args.pairsDictionary[e.returnValues['token0']];
+              if (token0Dict) {
+                const token0Lower = e.returnValues['token0'].toLowerCase();
+                const token1Lower = e.returnValues['token1'].toLowerCase(); 
+                newEvent['pair'] = args.pairsDictionary[token0Lower]?.[token1Lower];
+              }
             }
 
             if (args.stringFields) {
@@ -460,5 +465,3 @@ export class HarvesterService {
     return data;
   }
 }
-
-const camelToSnakeCase = (str) => str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);

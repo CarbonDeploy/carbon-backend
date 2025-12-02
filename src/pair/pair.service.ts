@@ -1,6 +1,6 @@
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Pair } from './pair.entity';
 import { HarvesterService } from '../harvester/harvester.service';
 import { decimalsABI, symbolABI } from '../abis/erc20.abi';
@@ -8,6 +8,8 @@ import { PairCreatedEvent } from '../events/pair-created-event/pair-created-even
 import { TokensByAddress } from '../token/token.service';
 import { LastProcessedBlockService } from '../last-processed-block/last-processed-block.service';
 import { PairCreatedEventService } from '../events/pair-created-event/pair-created-event.service';
+import { PairTradingFeePpmUpdatedEventService } from '../events/pair-trading-fee-ppm-updated-event/pair-trading-fee-ppm-updated-event.service';
+import { TradingFeePpmUpdatedEventService } from '../events/trading-fee-ppm-updated-event/trading-fee-ppm-updated-event.service';
 import * as _ from 'lodash';
 import { Deployment } from '../deployment/deployment.service';
 
@@ -21,11 +23,14 @@ export interface PairsDictionary {
 
 @Injectable()
 export class PairService {
+  private readonly logger = new Logger(PairService.name);
   constructor(
     @InjectRepository(Pair) private pair: Repository<Pair>,
     private harvesterService: HarvesterService,
     private lastProcessedBlockService: LastProcessedBlockService,
     private pairCreatedEventService: PairCreatedEventService,
+    private pairTradingFeePpmService: PairTradingFeePpmUpdatedEventService,
+    private tradingFeePpmService: TradingFeePpmUpdatedEventService,
   ) {}
 
   async update(endBlock: number, tokens: TokensByAddress, deployment: Deployment): Promise<void> {
@@ -71,7 +76,7 @@ export class PairService {
       }
       
       if (!token0 || !token1) {
-        console.log('Token not found, skipping pair creation:', {
+        this.logger.warn('Token not found, skipping pair creation:', {
           token0Address: e.token0,
           token1Address: e.token1,
           token0Found: !!token0,
@@ -157,5 +162,40 @@ export class PairService {
       dictionary[token1Address][token0Address] = p;
     });
     return dictionary;
+  }
+
+  async getTradingFeesByPair(deployment: Deployment): Promise<{ [pairKey: string]: number }> {
+    // Get default trading fee
+    const defaultFeeEvent = await this.tradingFeePpmService.last(deployment);
+    const defaultFee = defaultFeeEvent ? defaultFeeEvent.newFeePPM : 0;
+
+    // Get pair-specific fees
+    const pairFees = await this.pairTradingFeePpmService.allAsDictionary(deployment);
+
+    // Get all pairs and create result map
+    const query = `
+      SELECT
+        t0.address as token0_address,
+        t1.address as token1_address,
+        p.id as pair_id
+      FROM pairs p
+      LEFT JOIN tokens t0 ON p."token0Id" = t0.id
+      LEFT JOIN tokens t1 ON p."token1Id" = t1.id
+      WHERE p."blockchainType" = $1
+        AND p."exchangeId" = $2
+    `;
+
+    const pairs = await this.pair.manager.query(query, [deployment.blockchainType, deployment.exchangeId]);
+
+    const result: { [pairKey: string]: number } = {};
+
+    for (const pair of pairs) {
+      // Tokens are already stored alphabetically in the database
+      const pairKey = `${pair.token0_address}_${pair.token1_address}`;
+      const pairFee = pairFees[pair.pair_id];
+      result[pairKey] = pairFee !== undefined ? pairFee : defaultFee;
+    }
+
+    return result;
   }
 }
