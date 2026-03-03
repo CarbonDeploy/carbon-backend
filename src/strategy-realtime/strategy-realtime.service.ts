@@ -224,9 +224,9 @@ export class StrategyRealtimeService {
       const token0Address = strategy.tokens[0];
       const token1Address = strategy.tokens[1];
 
-      // Get token decimals from the tokens dictionary
-      const token0 = tokens[token0Address];
-      const token1 = tokens[token1Address];
+      // Get token decimals from the tokens dictionary (addresses are stored in lowercase)
+      const token0 = tokens[token0Address.toLowerCase()];
+      const token1 = tokens[token1Address.toLowerCase()];
 
       if (!token0 || !token1) {
         this.logger.warn(`Missing token info for strategy ${strategy.id}: ${token0Address} or ${token1Address}`);
