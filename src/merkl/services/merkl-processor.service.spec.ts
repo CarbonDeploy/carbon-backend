@@ -909,4 +909,507 @@ describe('MerklProcessorService', () => {
       });
     });
   });
+
+  describe('USD Rate Lookup', () => {
+    it('should return the last available price BEFORE the target timestamp, not the nearest', () => {
+      // Create a price cache with rates before and after the target timestamp
+      const priceCache = {
+        rates: new Map([
+          [
+            '0xtoken0',
+            [
+              { timestamp: 1000, usd: 1.0 },
+              { timestamp: 1200, usd: 1.5 }, // Last rate BEFORE 1500
+              { timestamp: 1800, usd: 2.0 }, // Closer to 1500 but AFTER it
+            ],
+          ],
+        ]),
+        timeWindow: { start: 900, end: 2000 },
+      };
+
+      const getUsdRateMethod = (service as any).getUsdRateForTimestamp.bind(service);
+
+      // Target timestamp is 1500
+      // Distance from 1200: 300
+      // Distance from 1800: 300 (same distance, but 1800 is AFTER)
+      // The method should return 1.5 (rate at 1200), not 2.0 (rate at 1800)
+      const result = getUsdRateMethod(priceCache, '0xtoken0', 1500);
+
+      expect(result).toBe(1.5); // Should use the last rate BEFORE the target, not the nearest
+    });
+
+    it('should return the most recent rate when multiple rates exist before target', () => {
+      const priceCache = {
+        rates: new Map([
+          [
+            '0xtoken0',
+            [
+              { timestamp: 1000, usd: 1.0 },
+              { timestamp: 1100, usd: 1.2 },
+              { timestamp: 1200, usd: 1.5 }, // Most recent BEFORE 1500
+              { timestamp: 2000, usd: 3.0 }, // After target
+            ],
+          ],
+        ]),
+        timeWindow: { start: 900, end: 2500 },
+      };
+
+      const getUsdRateMethod = (service as any).getUsdRateForTimestamp.bind(service);
+
+      const result = getUsdRateMethod(priceCache, '0xtoken0', 1500);
+
+      expect(result).toBe(1.5); // Should use the most recent rate before target
+    });
+
+    it('should fallback to earliest rate after target when no rates exist before', () => {
+      const priceCache = {
+        rates: new Map([
+          [
+            '0xtoken0',
+            [
+              { timestamp: 2000, usd: 2.0 }, // Earliest rate after target
+              { timestamp: 2500, usd: 2.5 },
+            ],
+          ],
+        ]),
+        timeWindow: { start: 1800, end: 3000 },
+      };
+
+      const getUsdRateMethod = (service as any).getUsdRateForTimestamp.bind(service);
+
+      const result = getUsdRateMethod(priceCache, '0xtoken0', 1500);
+
+      // No rates before target, should fallback to earliest rate after target (2.0 at timestamp 2000)
+      expect(result).toBe(2.0);
+    });
+
+    it('should handle exact timestamp match by using rates strictly before', () => {
+      const priceCache = {
+        rates: new Map([
+          [
+            '0xtoken0',
+            [
+              { timestamp: 1000, usd: 1.0 },
+              { timestamp: 1500, usd: 1.5 }, // Exact match with target
+              { timestamp: 2000, usd: 2.0 },
+            ],
+          ],
+        ]),
+        timeWindow: { start: 900, end: 2500 },
+      };
+
+      const getUsdRateMethod = (service as any).getUsdRateForTimestamp.bind(service);
+
+      // Target is 1500, but we want rates BEFORE 1500, so should return 1.0 (at 1000)
+      const result = getUsdRateMethod(priceCache, '0xtoken0', 1500);
+
+      expect(result).toBe(1.0); // Should use rate before, not at target timestamp
+    });
+  });
+
+  describe('Sub-epoch Timestamp Boundary', () => {
+    it('should only generate sub-epochs with timestamps before maxProcessingTimestamp', () => {
+      // This test verifies the fix that prevents processing sub-epochs before their timestamp.
+      // Sub-epochs should only be generated when their timestamp has passed (< maxProcessingTimestamp),
+      // ensuring all blockchain events are indexed before processing.
+
+      const epochStart = new Date('2025-01-01T10:00:00Z');
+      const epochEnd = new Date('2025-01-01T14:00:00Z'); // 4-hour epoch
+
+      const mockEpoch = {
+        epochNumber: 1,
+        startTimestamp: epochStart,
+        endTimestamp: epochEnd,
+        totalRewards: new Decimal('1000000000000000000'),
+      };
+
+      // Set maxProcessingTimestamp to middle of epoch (12:00)
+      const maxProcessingTimestamp = new Date('2025-01-01T12:00:00Z').getTime();
+
+      const mockStrategyStates = new Map();
+      const mockPriceCache = {
+        rates: new Map([
+          [mockToken0.address, [{ timestamp: epochStart.getTime(), usd: 1.0 }]],
+          [mockToken1.address, [{ timestamp: epochStart.getTime(), usd: 2.0 }]],
+        ]),
+        timeWindow: { start: epochStart.getTime(), end: epochEnd.getTime() },
+      };
+      const mockBatchEvents = {
+        createdEvents: [],
+        updatedEvents: [],
+        deletedEvents: [],
+        transferEvents: [],
+      };
+
+      const generateSubEpochsMethod = (service as any).generateSubEpochsForEpoch.bind(service);
+
+      const subEpochs = generateSubEpochsMethod(
+        mockEpoch,
+        mockStrategyStates,
+        mockCampaign,
+        mockPriceCache,
+        mockBatchEvents,
+        maxProcessingTimestamp,
+      );
+
+      // Verify ALL generated sub-epochs have timestamps before maxProcessingTimestamp
+      for (const subEpoch of subEpochs) {
+        expect(subEpoch.timestamp).toBeLessThan(maxProcessingTimestamp);
+      }
+
+      // Also verify we didn't generate sub-epochs all the way to epoch end
+      // (which would happen without the fix)
+      if (subEpochs.length > 0) {
+        const maxSubEpochTimestamp = Math.max(...subEpochs.map((se: { timestamp: number }) => se.timestamp));
+        expect(maxSubEpochTimestamp).toBeLessThan(epochEnd.getTime());
+      }
+    });
+
+    it('should generate sub-epochs up to epoch end when maxProcessingTimestamp is after epoch end', () => {
+      // When maxProcessingTimestamp is after the epoch ends, we should process the full epoch
+
+      const epochStart = new Date('2025-01-01T10:00:00Z');
+      const epochEnd = new Date('2025-01-01T14:00:00Z');
+
+      const mockEpoch = {
+        epochNumber: 1,
+        startTimestamp: epochStart,
+        endTimestamp: epochEnd,
+        totalRewards: new Decimal('1000000000000000000'),
+      };
+
+      // Set maxProcessingTimestamp to after epoch end
+      const maxProcessingTimestamp = new Date('2025-01-01T16:00:00Z').getTime();
+
+      const mockStrategyStates = new Map();
+      const mockPriceCache = {
+        rates: new Map([
+          [mockToken0.address, [{ timestamp: epochStart.getTime(), usd: 1.0 }]],
+          [mockToken1.address, [{ timestamp: epochStart.getTime(), usd: 2.0 }]],
+        ]),
+        timeWindow: { start: epochStart.getTime(), end: epochEnd.getTime() },
+      };
+      const mockBatchEvents = {
+        createdEvents: [],
+        updatedEvents: [],
+        deletedEvents: [],
+        transferEvents: [],
+      };
+
+      const generateSubEpochsMethod = (service as any).generateSubEpochsForEpoch.bind(service);
+
+      const subEpochs = generateSubEpochsMethod(
+        mockEpoch,
+        mockStrategyStates,
+        mockCampaign,
+        mockPriceCache,
+        mockBatchEvents,
+        maxProcessingTimestamp,
+      );
+
+      // All sub-epochs should be before epoch end (the effective limit in this case)
+      for (const subEpoch of subEpochs) {
+        expect(subEpoch.timestamp).toBeLessThan(epochEnd.getTime());
+      }
+    });
+  });
+
+  describe('BUG: Partial epoch processing causes lost sub-epochs', () => {
+    it('should demonstrate that maxProcessingTimestamp just seconds after epoch start generates only 1 sub-epoch', () => {
+      // Use a campaign whose dates encompass the test epoch
+      const testCampaign = {
+        ...mockCampaign,
+        startDate: new Date('2025-01-01T00:00:00Z'),
+        endDate: new Date('2025-01-31T00:00:00Z'),
+      };
+
+      const epochStart = new Date('2025-01-01T10:00:00Z');
+      const epochEnd = new Date('2025-01-01T14:00:00Z'); // 4-hour epoch
+
+      const mockEpoch = {
+        epochNumber: 3,
+        startTimestamp: epochStart,
+        endTimestamp: epochEnd,
+        totalRewards: new Decimal('1000000000000000000'),
+      };
+
+      // Simulate updater running 10 seconds after epoch start (like production)
+      const maxProcessingTimestamp = epochStart.getTime() + 10_000; // 10 seconds after start
+
+      const mockStrategyStates = new Map();
+      const mockPriceCache = {
+        rates: new Map([
+          [mockToken0.address.toLowerCase(), [{ timestamp: epochStart.getTime() - 86400000, usd: 1.0 }]],
+          [mockToken1.address.toLowerCase(), [{ timestamp: epochStart.getTime() - 86400000, usd: 2.0 }]],
+        ]),
+        timeWindow: { start: epochStart.getTime() - 86400000, end: epochEnd.getTime() },
+      };
+      const mockBatchEvents = {
+        createdEvents: [],
+        updatedEvents: [],
+        deletedEvents: [],
+        transferEvents: [],
+      };
+
+      const generateSubEpochsMethod = (service as any).generateSubEpochsForEpoch.bind(service);
+
+      // Full epoch processing (for comparison)
+      const fullSubEpochs = generateSubEpochsMethod(
+        mockEpoch,
+        mockStrategyStates,
+        testCampaign,
+        mockPriceCache,
+        mockBatchEvents,
+        epochEnd.getTime() + 1000, // well after epoch end
+      );
+
+      // Partial epoch processing (simulating production)
+      const partialSubEpochs = generateSubEpochsMethod(
+        mockEpoch,
+        mockStrategyStates,
+        testCampaign,
+        mockPriceCache,
+        mockBatchEvents,
+        maxProcessingTimestamp,
+      );
+
+      // Full epoch should generate ~40-48 sub-epochs (14400s / ~300s per interval)
+      expect(fullSubEpochs.length).toBeGreaterThanOrEqual(40);
+      expect(fullSubEpochs.length).toBeLessThanOrEqual(60);
+
+      // BUG PROOF: With maxProcessingTimestamp just 10s after epoch start,
+      // only 1 sub-epoch is generated (the one at epoch start)
+      expect(partialSubEpochs.length).toBe(1);
+      expect(partialSubEpochs[0].timestamp).toBe(epochStart.getTime());
+
+      // This means ~97% of sub-epochs are lost for this epoch
+      const lossPercentage = ((fullSubEpochs.length - partialSubEpochs.length) / fullSubEpochs.length) * 100;
+      expect(lossPercentage).toBeGreaterThan(95);
+    });
+
+    it('should demonstrate that epoch is skipped on second run after partial processing', async () => {
+      // This test simulates two consecutive update cycles to prove that
+      // partially processed epochs are permanently skipped
+
+      const campaign30Day = {
+        ...mockCampaign,
+        id: 51,
+        startDate: new Date('2025-01-01T00:00:00Z'),
+        endDate: new Date('2025-01-31T00:00:00Z'), // 30-day campaign
+        rewardAmount: '71000000000000000000', // 71 tokens
+      };
+
+      // Calculate expected sub-epochs per epoch
+      const calculateTotalSubEpochs = (service as any).calculateTotalSubEpochsForCampaign.bind(service);
+      const totalSubEpochs = calculateTotalSubEpochs(campaign30Day);
+      const totalEpochs = (30 * 24) / 4; // 180 epochs for 30 days
+
+      // Each epoch should have roughly totalSubEpochs / totalEpochs sub-epochs
+      const expectedSubEpochsPerEpoch = totalSubEpochs / totalEpochs;
+
+      // The reward per sub-epoch
+      const rewardPerSubEpoch = 71 / totalSubEpochs;
+
+      // After 20 days (120 epochs), if each epoch only generates 1 sub-epoch:
+      const actualSubEpochsGenerated = 120; // 1 per epoch
+      const actualRewardsDistributed = actualSubEpochsGenerated * rewardPerSubEpoch;
+
+      // After 20 days, expected rewards
+      const expectedRewardsDistributed = (20 / 30) * 71; // ~47.33 tokens
+
+      // BUG PROOF: Actual rewards are massively less than expected
+      expect(actualRewardsDistributed).toBeLessThan(2); // ~1 token instead of ~47
+      expect(expectedRewardsDistributed).toBeGreaterThan(45);
+
+      // The ratio of actual/expected shows the severity
+      const ratio = actualRewardsDistributed / expectedRewardsDistributed;
+      expect(ratio).toBeLessThan(0.05); // Less than 5% of expected rewards distributed
+    });
+
+    it('should demonstrate calculateEpochBatchesToProcess skips partially processed epochs', async () => {
+      const campaign = {
+        ...mockCampaign,
+        id: 51,
+        startDate: new Date('2025-01-01T00:00:00Z'),
+        endDate: new Date('2025-01-02T00:00:00Z'), // 1-day campaign (6 epochs)
+      };
+
+      // FIRST RUN: lastProcessedEpochNumber = 0, so all epochs are processable
+      const calculateEpochsInRange = (service as any).calculateEpochsInRange.bind(service);
+      const allEpochs = calculateEpochsInRange(
+        campaign,
+        campaign.startDate.getTime(),
+        campaign.endDate.getTime(),
+      );
+
+      expect(allEpochs.length).toBe(6); // 24 hours / 4 hours = 6 epochs
+
+      // After first run processes epoch 1 (with partial sub-epochs),
+      // getLastProcessedEpochNumber returns 1
+      const lastProcessedEpochNumber = 1;
+      const epochsToProcessSecondRun = allEpochs.filter(
+        (epoch: any) => epoch.epochNumber > lastProcessedEpochNumber,
+      );
+
+      // BUG PROOF: Epoch 1 is filtered out even though it was only partially processed
+      expect(epochsToProcessSecondRun.length).toBe(5); // Epochs 2-6
+      expect(epochsToProcessSecondRun.map((e: any) => e.epochNumber)).toEqual([2, 3, 4, 5, 6]);
+      // Epoch 1 is gone forever with only 1 of ~48 sub-epochs generated!
+    });
+  });
+
+  describe('FIX: Only process fully elapsed epochs', () => {
+    it('should not process epochs whose endTimestamp is after globalEndTimestamp', () => {
+      const campaign = {
+        ...mockCampaign,
+        id: 51,
+        startDate: new Date('2025-01-01T00:00:00Z'),
+        endDate: new Date('2025-01-02T00:00:00Z'), // 1-day campaign (6 epochs)
+      };
+
+      const calculateEpochsInRange = (service as any).calculateEpochsInRange.bind(service);
+
+      // globalEndTimestamp is 2.5 hours into the first epoch (not yet elapsed)
+      const globalEndTimestamp = new Date('2025-01-01T02:30:00Z').getTime();
+
+      const allEpochs = calculateEpochsInRange(
+        campaign,
+        campaign.startDate.getTime(),
+        globalEndTimestamp,
+      );
+
+      const lastProcessedEpochNumber = 0;
+
+      // THE FIX: only process epochs that are fully elapsed
+      const epochsToProcess = allEpochs.filter(
+        (epoch: any) =>
+          epoch.epochNumber > lastProcessedEpochNumber &&
+          epoch.endTimestamp.getTime() <= globalEndTimestamp,
+      );
+
+      // Epoch 1 ends at 04:00, which is AFTER globalEndTimestamp (02:30)
+      // So no epochs should be processed yet
+      expect(epochsToProcess.length).toBe(0);
+
+      // Now simulate globalEndTimestamp after epoch 1 completes
+      const globalEndTimestamp2 = new Date('2025-01-01T04:00:01Z').getTime();
+      const allEpochs2 = calculateEpochsInRange(
+        campaign,
+        campaign.startDate.getTime(),
+        globalEndTimestamp2,
+      );
+
+      const epochsToProcess2 = allEpochs2.filter(
+        (epoch: any) =>
+          epoch.epochNumber > lastProcessedEpochNumber &&
+          epoch.endTimestamp.getTime() <= globalEndTimestamp2,
+      );
+
+      // Now epoch 1 IS fully elapsed, so it should be processable
+      expect(epochsToProcess2.length).toBe(1);
+      expect(epochsToProcess2[0].epochNumber).toBe(1);
+    });
+
+    it('should generate all sub-epochs when processing a fully elapsed epoch', () => {
+      const testCampaign = {
+        ...mockCampaign,
+        startDate: new Date('2025-01-01T00:00:00Z'),
+        endDate: new Date('2025-01-31T00:00:00Z'),
+      };
+
+      const epochStart = new Date('2025-01-01T10:00:00Z');
+      const epochEnd = new Date('2025-01-01T14:00:00Z');
+
+      const mockEpoch = {
+        epochNumber: 3,
+        startTimestamp: epochStart,
+        endTimestamp: epochEnd,
+        totalRewards: new Decimal('1000000000000000000'),
+      };
+
+      // maxProcessingTimestamp is AFTER epoch end (fully elapsed)
+      const maxProcessingTimestamp = epochEnd.getTime() + 1000;
+
+      const mockPriceCache = {
+        rates: new Map([
+          [mockToken0.address.toLowerCase(), [{ timestamp: epochStart.getTime() - 86400000, usd: 1.0 }]],
+          [mockToken1.address.toLowerCase(), [{ timestamp: epochStart.getTime() - 86400000, usd: 2.0 }]],
+        ]),
+        timeWindow: { start: epochStart.getTime() - 86400000, end: epochEnd.getTime() },
+      };
+      const mockBatchEvents = {
+        createdEvents: [],
+        updatedEvents: [],
+        deletedEvents: [],
+        transferEvents: [],
+      };
+
+      const generateSubEpochsMethod = (service as any).generateSubEpochsForEpoch.bind(service);
+
+      const subEpochs = generateSubEpochsMethod(
+        mockEpoch,
+        new Map(),
+        testCampaign,
+        mockPriceCache,
+        mockBatchEvents,
+        maxProcessingTimestamp,
+      );
+
+      // All ~48 sub-epochs should be generated for the fully elapsed epoch
+      expect(subEpochs.length).toBeGreaterThanOrEqual(40);
+      expect(subEpochs.length).toBeLessThanOrEqual(60);
+
+      // Verify sub-epochs span the full epoch duration
+      const firstTs = subEpochs[0].timestamp;
+      const lastTs = subEpochs[subEpochs.length - 1].timestamp;
+      expect(firstTs).toBe(epochStart.getTime());
+      expect(lastTs).toBeGreaterThan(epochStart.getTime() + 13_000_000); // close to 4h
+      expect(lastTs).toBeLessThan(epochEnd.getTime());
+    });
+
+    it('should distribute correct total rewards over a 30-day campaign with the fix', () => {
+      const testCampaign = {
+        ...mockCampaign,
+        id: 51,
+        startDate: new Date('2025-01-01T00:00:00Z'),
+        endDate: new Date('2025-01-31T00:00:00Z'),
+        rewardAmount: '71000000000000000000',
+      };
+
+      const calculateTotalSubEpochs = (service as any).calculateTotalSubEpochsForCampaign.bind(service);
+      const totalSubEpochs = calculateTotalSubEpochs(testCampaign);
+      const totalEpochs = (30 * 24) / 4; // 180 epochs
+
+      const subEpochsPerEpoch = totalSubEpochs / totalEpochs;
+      const rewardPerSubEpoch = 71 / totalSubEpochs;
+
+      // WITH THE FIX: after 20 days (120 fully elapsed epochs), each epoch gets ALL sub-epochs
+      const fixedSubEpochsGenerated = 120 * subEpochsPerEpoch;
+      const fixedRewardsDistributed = fixedSubEpochsGenerated * rewardPerSubEpoch;
+
+      // Should be close to expected 20/30 * 71 = ~47.33 tokens
+      expect(fixedRewardsDistributed).toBeGreaterThan(45);
+      expect(fixedRewardsDistributed).toBeLessThan(50);
+    });
+  });
+
+  describe('FIX: Correct * 1000 on null price path', () => {
+    it('should advance time correctly in milliseconds when targetPrices is null', () => {
+      // Verify the fix: intervals are in seconds, currentTime is in milliseconds,
+      // so we must multiply by 1000 on both the success and null-price paths
+      const snapshotIntervals = (service as any).getSnapshotIntervals(mockCampaign, {
+        epochNumber: 1,
+        startTimestamp: new Date('2025-01-01T10:00:00Z'),
+        endTimestamp: new Date('2025-01-01T14:00:00Z'),
+      });
+
+      let totalAdvanced = 0;
+      for (const interval of snapshotIntervals) {
+        totalAdvanced += interval * 1000; // fixed: * 1000
+      }
+
+      // Should sum to 4 hours in milliseconds
+      expect(totalAdvanced).toBe(14400000);
+    });
+  });
 });

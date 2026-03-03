@@ -27,6 +27,7 @@ import { CarbonPriceModule } from './carbon-price/carbon-price.module';
 import { MerklModule } from './merkl/merkl.module';
 import { WalletPairBalanceModule } from './wallet-pair-balance/wallet-pair-balance.module';
 import * as fs from 'fs';
+import { StrategyRealtimeModule } from './strategy-realtime/strategy-realtime.module';
 
 @Module({
   imports: [
@@ -113,6 +114,7 @@ import * as fs from 'fs';
     CarbonPriceModule,
     MerklModule,
     WalletPairBalanceModule,
+    StrategyRealtimeModule,
   ],
 
   providers: [

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { EncodedStrategy, SeedDataResponse } from './seed-data.dto';
-import { StrategyWithOwner } from '../../strategy/strategy.service';
+import { StrategyRealtimeWithOwner } from '../../strategy-realtime/strategy-realtime.service';
 
 const SCHEME_VERSION = 7;
 
@@ -8,7 +8,7 @@ const SCHEME_VERSION = 7;
 export class SeedDataService {
   async buildSeedData(
     latestBlockNumber: number,
-    strategiesWithOwners: StrategyWithOwner[],
+    strategiesWithOwners: StrategyRealtimeWithOwner[],
     tradingFeePPMByPair: { [pairKey: string]: number },
     page = 0,
     pageSize = 0,
@@ -37,8 +37,10 @@ export class SeedDataService {
     const strategiesByPair: { [pairKey: string]: EncodedStrategy[] } = {};
 
     for (const strategy of paginatedStrategies) {
-      // Tokens are already stored alphabetically in the database
-      const pairKey = `${strategy.token0Address}_${strategy.token1Address}`;
+      const [sortedToken0, sortedToken1] = [strategy.token0Address, strategy.token1Address].sort((a, b) =>
+        a.localeCompare(b),
+      );
+      const pairKey = `${sortedToken0}_${sortedToken1}`;
 
       if (!strategiesByPair[pairKey]) {
         strategiesByPair[pairKey] = [];
