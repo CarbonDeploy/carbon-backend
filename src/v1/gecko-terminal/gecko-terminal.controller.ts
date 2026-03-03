@@ -71,7 +71,7 @@ export class GeckoTerminalController {
     return {
       pair: {
         id,
-        dexKey: 'carbondefi',
+        dexKey: 'DNAX',
         asset0Id: pair.asset0id,
         asset1Id: pair.asset1id,
         createdAtBlockNumber: pair.createdatblocknumber,

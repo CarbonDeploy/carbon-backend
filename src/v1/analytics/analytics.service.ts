@@ -10,6 +10,18 @@ import { convertKeysToCamelCase } from '../../utilities';
 const ANALYTICS_GENERIC_METRICS_KEY = 'carbon:generic-metrics';
 const ANALYTICS_TRADES_COUNT_KEY = 'carbon:trades-count';
 const ANALYTICS_TRENDING = 'carbon:trending';
+const STABLE_SYMBOLS = [
+  'USDC',
+  'USDT',
+  'DAI',
+  'BUSD',
+  'TUSD',
+  'USDP',
+  'USDD',
+  'USDN',
+  'FRAX',
+  'USX',
+];
 
 @Injectable()
 export class AnalyticsService {
@@ -63,6 +75,116 @@ export class AnalyticsService {
     );
 
     return cache;
+  }
+
+  async getOwnerVolumes(deployment: Deployment): Promise<
+    Array<{
+      owner: string;
+      totalUsdVolume: number;
+    }>
+  > {
+    const stableList = STABLE_SYMBOLS.map((s) => `'${s}'`).join(', ');
+
+    const query = `
+      WITH stable_tokens AS (
+        SELECT unnest(ARRAY[${stableList}]) AS symbol
+      ),
+      strategy_base AS (
+        SELECT
+          s."strategyId",
+          s.owner,
+          s."pairId",
+          s."token0Id",
+          s."token1Id"
+        FROM strategies s
+        JOIN tokens t0 ON t0.id = s."token0Id" AND t0."blockchainType" = '${deployment.blockchainType}' AND t0."exchangeId" = '${deployment.exchangeId}'
+        JOIN tokens t1 ON t1.id = s."token1Id" AND t1."blockchainType" = '${deployment.blockchainType}' AND t1."exchangeId" = '${deployment.exchangeId}'
+        WHERE s."blockchainType" = '${deployment.blockchainType}'
+          AND s."exchangeId" = '${deployment.exchangeId}'
+          AND s.owner IS NOT NULL
+          AND LOWER(s.owner) <> '0x0000000000000000000000000000000000000000'
+          AND NOT (
+            UPPER(t0.symbol) IN (SELECT symbol FROM stable_tokens)
+            AND UPPER(t1.symbol) IN (SELECT symbol FROM stable_tokens)
+          )
+      ),
+      strategy_trades AS (
+        SELECT
+          sb.owner,
+          sb."strategyId",
+          sb."token0Id",
+          sb."token1Id",
+          sue."blockId",
+          sue.timestamp,
+          NULLIF(sue.order0::json->>'y', '')::numeric AS y0,
+          NULLIF(sue.order1::json->>'y', '')::numeric AS y1
+        FROM "strategy-updated-events" sue
+        JOIN strategy_base sb ON sb."strategyId" = sue."strategyId" AND sb."pairId" = sue."pairId"
+        WHERE sue."blockchainType" = '${deployment.blockchainType}'
+          AND sue."exchangeId" = '${deployment.exchangeId}'
+          AND sue.reason = 1
+      ),
+      lagged AS (
+        SELECT
+          st.*,
+          LAG(y0) OVER (PARTITION BY "strategyId" ORDER BY "blockId", timestamp) AS prev_y0,
+          LAG(y1) OVER (PARTITION BY "strategyId" ORDER BY "blockId", timestamp) AS prev_y1,
+          DATE_TRUNC('day', timestamp) AS trade_day
+        FROM strategy_trades st
+      ),
+      deltas AS (
+        SELECT *
+        FROM lagged
+        WHERE prev_y0 IS NOT NULL OR prev_y1 IS NOT NULL
+      ),
+      historic_prices AS (
+        SELECT
+          LOWER("tokenAddress") AS token_address,
+          DATE_TRUNC('day', "timestamp") AS trade_day,
+          MAX(NULLIF(usd, '')::numeric) AS price
+        FROM "historic-quotes"
+        WHERE "blockchainType" = '${deployment.blockchainType}'
+        GROUP BY 1, 2
+      ),
+      priced AS (
+        SELECT
+          d.owner,
+          ABS(COALESCE(d.y0, 0) - COALESCE(d.prev_y0, 0)) / NULLIF(POW(10, t0.decimals), 0) AS delta0,
+          ABS(COALESCE(d.y1, 0) - COALESCE(d.prev_y1, 0)) / NULLIF(POW(10, t1.decimals), 0) AS delta1,
+          COALESCE(hp0.price, NULLIF(q0.usd, '')::numeric, 0) AS price0,
+          COALESCE(hp1.price, NULLIF(q1.usd, '')::numeric, 0) AS price1
+        FROM deltas d
+        JOIN tokens t0 ON t0.id = d."token0Id"
+        JOIN tokens t1 ON t1.id = d."token1Id"
+        LEFT JOIN historic_prices hp0 ON hp0.token_address = LOWER(t0.address) AND hp0.trade_day = d.trade_day
+        LEFT JOIN historic_prices hp1 ON hp1.token_address = LOWER(t1.address) AND hp1.trade_day = d.trade_day
+        LEFT JOIN quotes q0 ON q0."tokenId" = t0.id AND q0."blockchainType" = '${deployment.blockchainType}'
+        LEFT JOIN quotes q1 ON q1."tokenId" = t1.id AND q1."blockchainType" = '${deployment.blockchainType}'
+      ),
+      owner_volume AS (
+        SELECT
+          owner,
+          SUM(
+            CASE
+              WHEN price1 > 0 THEN delta1 * price1   -- target-side USD if priced
+              WHEN price0 > 0 THEN delta0 * price0   -- fallback to source-side USD
+              ELSE 0
+            END
+          ) AS total_usd_volume
+        FROM priced
+        GROUP BY owner
+      )
+      SELECT owner, total_usd_volume
+      FROM owner_volume
+      ORDER BY total_usd_volume DESC NULLS LAST;
+    `;
+
+    const rows = await this.strategy.query(query);
+
+    return rows.map((r: any) => ({
+      owner: r.owner,
+      totalUsdVolume: Number(r.total_usd_volume ?? 0),
+    }));
   }
 
   private async getGenericMetrics(deployment: Deployment, quotesCTE: string, historicQuotesCTE: string): Promise<any> {
