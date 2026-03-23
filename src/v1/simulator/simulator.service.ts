@@ -92,7 +92,6 @@ export class SimulatorService {
       network_fee: `${feePpm / 1000000}`,
       prices: pricesRatios,
     };
-
     // Create folder if it doesn't exist
     await fsPromises.mkdir(folderPath, { recursive: true });
 
